@@ -1,3 +1,5 @@
+import java.time.LocalDateTime;
+//Exercise 1
 class Inventory {
     boolean checkStock(String productId) {
         return true;
@@ -39,8 +41,26 @@ class Shipping {
 class Email{
     void send(String to, String subject, String body){
         System.out.println("Email sent to" + to);
+        System.out.println(body);
     }
 
+}
+
+//Extension (Exercise 2)
+class TaxCalculator{
+    double calculateTax(String state, double price){
+        if ("CA".equalsIgnoreCase(state)){
+            return price * 0.08;
+        }
+        return 0.0;
+    }
+
+}
+
+class Logger{
+    void log(String userId, boolean success){
+        System.out.println("[" + LocalDateTime.now() + "]" + "User: " + userId + " | Staus:" + (success ? "SUCCESS" : "FAIL"));
+    }
 }
 
 public class CheckoutFacade{
@@ -48,28 +68,41 @@ public class CheckoutFacade{
     private Payment pay = new Payment();
     private Shipping ship = new Shipping();
     private Email email = new Email();
-    public OrderResult checkout(String userId, String productId, double price, String address){
+    private TaxCalculator taxcalc = new TaxCalculator();
+    private Logger log  = new Logger();
+    public OrderResult checkout(String userId, String productId, double price, String address, String state){
         if (!invent.checkStock(productId)) {
+            log.log(userId, false);
             return new OrderResult(false, null , "Product not in stock");
         }
 
         invent.reserve(productId);
 
+        double tax = taxcalc.calculateTax(state, price);
+        double total_price = price + tax;
+
         if (!pay.charge(userId, price)){
             invent.release(productId);
+            log.log(userId, false);
             return new OrderResult(false, null, "Payment did not go through");
         }
 
         if(!ship.isAvailable()){
             pay.refund(userId, price);
             invent.release(productId);
+            log.log(userId,false);
             return new OrderResult(false, null, "Shipping unavailable");
         }
 
         String trackingNumber = ship.createLabel(address);
         ship.schedulePickup(trackingNumber);
 
-        email.send(userId, "Order Confirmation", "Tracking Number:" + trackingNumber);
+        email.send(userId, 
+            "Order Confirmation", 
+                    "Tracking Number:" + trackingNumber + 
+                    "\nBase Price: $" + price +
+                    "\nTax: $" + tax +
+                    "\nTotal Price: $" + total_price);
 
         return new OrderResult(true, trackingNumber, "Order placed succesfully");
     }
@@ -99,3 +132,6 @@ class OrderResult {
         return message;
     }
 }
+
+
+
